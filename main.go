@@ -7,8 +7,10 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
+	"github.com/shopspring/decimal"
 )
 
 type PaymentType string
@@ -25,11 +27,11 @@ const (
 
 const DB_CONTEXT = "databaseConn"
 const DEFAULT_USERNAME = "mock_user"
-const DEFAULT_USER_BALANCE = 10000
+const DEFAULT_USER_BALANCE = "10000"
 
 type PaymentMethod struct {
 	UserId   string          `db:"user_id"`
-	Balance  float64         `db:"balance"`
+	Balance  string          `db:"balance"`
 	Type     PaymentType     `db:"type"`
 	Currency PaymentCurrency `db:"currency"`
 }
@@ -43,14 +45,14 @@ type TransactionLog struct {
 	UserId            string          `db:"user_id"`
 	PaymentMethodType PaymentType     `db:"payment_method_type"`
 	Currency          PaymentCurrency `db:"currency"`
-	CheckoutAmount    float64         `db:"checkout_amount"`
+	CheckoutAmount    string          `db:"checkout_amount"`
 }
 
 type DisburseRequest struct {
 	UserId         string          `json:"user_id"`
 	Currency       PaymentCurrency `json:"currency"`
 	Type           PaymentType     `json:"type"`
-	CheckoutAmount float64         `json:"checkout_amount"`
+	CheckoutAmount string          `json:"checkout_amount"`
 }
 
 type DisburseResponse struct {
@@ -149,6 +151,12 @@ func getPaymentMethod(userId string, currency PaymentCurrency, paymentType Payme
 
 func DisburseUser(request DisburseRequest, ctx context.Context, db *sqlx.DB) error {
 
+	checkoutAmount, err := decimal.NewFromString(request.CheckoutAmount)
+
+	if err != nil {
+		return fmt.Errorf("[DisburseUser] %w", err)
+	}
+
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{
 		Isolation: sql.LevelSerializable,
 	})
@@ -177,12 +185,21 @@ func DisburseUser(request DisburseRequest, ctx context.Context, db *sqlx.DB) err
 		return fmt.Errorf("[DisburseUser] %w", err)
 	}
 
-	if userPaymentMethod.Balance < request.CheckoutAmount {
+	balance, err := decimal.NewFromString(request.CheckoutAmount)
+
+	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("[DisburseUser] not enough balance, current user balance: %f, checkout balance: %f", userPaymentMethod.Balance, request.CheckoutAmount)
+		return fmt.Errorf("[DisburseUser] %w", err)
 	}
 
-	userPaymentMethod.Balance -= request.CheckoutAmount
+	if balance.LessThan(checkoutAmount) {
+		tx.Rollback()
+		return fmt.Errorf("[DisburseUser] not enough balance, current user balance: %s, checkout balance: %s", userPaymentMethod.Balance, request.CheckoutAmount)
+	}
+
+	balance = balance.Sub(checkoutAmount)
+
+	userPaymentMethod.Balance = balance.String()
 
 	updateBalanceQuery := `
 		UPDATE payment_methods
@@ -234,7 +251,7 @@ func initData(db *sqlx.DB) error {
 			user_id VARCHAR(32) NOT NULL REFERENCES users(username),
 			type VARCHAR(32) NOT NULL,
 			currency VARCHAR(32) NOT NULL,
-			balance DECIMAL DEFAULT 1000,
+			balance NUMERIC(19, 4) DEFAULT 1000,
 			
 			PRIMARY KEY(user_id, type, currency)
 	 	);
