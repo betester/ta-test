@@ -157,6 +157,10 @@ func DisburseUser(request DisburseRequest, ctx context.Context, db *sqlx.DB) err
 		return fmt.Errorf("[DisburseUser] %w", err)
 	}
 
+	if checkoutAmount.LessThan(decimal.NewFromInt(0)) {
+		return fmt.Errorf("[DisburseUser] could not disburse negative number", err)
+	}
+
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{
 		Isolation: sql.LevelSerializable,
 	})

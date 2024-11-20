@@ -14,6 +14,7 @@ import (
 //TODO: test in here the following
 // 1. do concurrent update on the price with the expected price (done)
 // 2. do floating point related issues  testing (done)
+// 3. do testing on negative number
 
 func TestConcurrentTransaction(t *testing.T) {
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
