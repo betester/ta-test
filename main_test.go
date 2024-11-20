@@ -14,7 +14,7 @@ import (
 //TODO: test in here the following
 // 1. do concurrent update on the price with the expected price (done)
 // 2. do floating point related issues  testing (done)
-// 3. do testing on negative number
+// 3. do testing on negative number (done)
 
 func TestConcurrentTransaction(t *testing.T) {
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
@@ -150,5 +150,63 @@ func TestFloatingPoint(t *testing.T) {
 	if !balance.Equal(decimal.NewFromInt(0)) {
 		fmt.Println(paymentMethod)
 		t.Fatalf("incorrect result %s", balance)
+	}
+}
+
+func TestNegativeNumber(t *testing.T) {
+	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		"localhost", 5432, "user", "password", "db", "disable")
+
+	db, err := sqlx.Connect("postgres", dsn)
+	if err != nil {
+		panic(err)
+	}
+
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+
+	err = dropTable(db)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = initData(db)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	checkoutAmount := "-1.00"
+	liraBalance := "1000"
+
+	mockPaymentMethod := PaymentMethod{
+		UserId:   DEFAULT_USERNAME,
+		Balance:  liraBalance,
+		Type:     Default,
+		Currency: Lira,
+	}
+
+	addPaymentMethod(mockPaymentMethod, db)
+
+	req := DisburseRequest{
+		UserId:         DEFAULT_USERNAME,
+		Currency:       Lira,
+		Type:           Default,
+		CheckoutAmount: checkoutAmount,
+	}
+
+	ctx := context.Background()
+
+	if err := DisburseUser(req, ctx, db); err == nil {
+		t.Fatalf("Should not allow neagitve number")
+	}
+
+	paymentMethod, err := getPaymentMethod(DEFAULT_USERNAME, Lira, Default, db)
+	result, _ := decimal.NewFromString(paymentMethod.Balance)
+	liraDecimal, _ := decimal.NewFromString(liraBalance)
+
+	if !result.Equal(liraDecimal) {
+		t.Fatalf("Should not allow neagitve number")
 	}
 }

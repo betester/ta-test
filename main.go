@@ -21,8 +21,9 @@ const (
 )
 
 const (
-	Idr PaymentCurrency = "Idr"
-	Us  PaymentCurrency = "Us"
+	Idr  PaymentCurrency = "Idr"
+	Us   PaymentCurrency = "Us"
+	Lira PaymentCurrency = "Lira"
 )
 
 const DB_CONTEXT = "databaseConn"
@@ -158,7 +159,7 @@ func DisburseUser(request DisburseRequest, ctx context.Context, db *sqlx.DB) err
 	}
 
 	if checkoutAmount.LessThan(decimal.NewFromInt(0)) {
-		return fmt.Errorf("[DisburseUser] could not disburse negative number", err)
+		return fmt.Errorf("[DisburseUser] could not disburse negative number")
 	}
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{
