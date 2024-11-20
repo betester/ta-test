@@ -62,8 +62,8 @@ type DisburseResponse struct {
 
 func recordTransaction(transactionLog TransactionLog, db *sqlx.DB) error {
 	query := `
-		INSERT INTO transaction_logs (tid, user_id, payment_method_id, checkout_amount)
-		VALUES (:tid, :user_id, :payment_method_id, :checkout_amount)
+		INSERT INTO transaction_logs (user_id, payment_method_type, currency, checkout_amount)
+	VALUES (:user_id, :payment_method_type, :currency, :checkout_amount)
 	`
 
 	result, err := db.NamedExec(query, transactionLog)
@@ -190,7 +190,7 @@ func DisburseUser(request DisburseRequest, ctx context.Context, db *sqlx.DB) err
 		return fmt.Errorf("[DisburseUser] %w", err)
 	}
 
-	balance, err := decimal.NewFromString(request.CheckoutAmount)
+	balance, err := decimal.NewFromString(userPaymentMethod.Balance)
 
 	if err != nil {
 		tx.Rollback()
